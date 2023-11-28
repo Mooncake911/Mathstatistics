@@ -5,33 +5,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.metrics import confusion_matrix, roc_curve, auc
 
 import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 logit = sm.genmod.families.links.Logit()
 probit = sm.genmod.families.links.Probit()
-from statsmodels.stats.outliers_influence import variance_inflation_factor
+
 
 sns.set()
 pd.options.display.expand_frame_repr = False
-
-
-def norm_data(df, pass_columns=None):
-    """ Нормализуем данные """
-    if pass_columns is None:
-        pass_columns = []
-    for col in df.columns:
-        label_encoder = LabelEncoder()
-        scaler = MinMaxScaler()
-        if df[col].dtype.kind in 'O':
-            df[col] = label_encoder.fit_transform(df[col])
-        elif df[col].dtype.kind in 'iufc':
-            if (df[col].min() != 0 and df[col].max() != 1) and col not in pass_columns:
-                df[col] = scaler.fit_transform(df[[col]])
-            else:
-                pass
-    return df
 
 
 # Биномиальная регрессия
@@ -74,14 +57,15 @@ class BinomialRegressionResearch:
         print(self.results.summary(title=self.column))
 
         # Вывод уравнения(закона) регрессии
-        intercept = self.results.params[0]
-        coefficients = self.results.params[1:]
+        coefficients = self.results.params
+        coefficients_names = self.results.params.index
         output_str = f'Law:\n{self.column} = '
-        for i, c in enumerate(self.results.params.index[1:]):
-            output_str += f'({coefficients[i]}) * {c} + '
+        for i, c in enumerate(coefficients_names):
+            output_str += f'({coefficients[i]}) * {c}'
+            if i < len(coefficients_names) - 1:
+                output_str += ' + '
             if i % 2 != 0:
                 output_str += '\n'
-        output_str += f'({intercept})'
         print(output_str)
 
         # Получение мер влиятельности для каждого наблюдения
@@ -160,7 +144,8 @@ class BinomialRegressionResearch:
 
             for index in range(len(remaining_features)):
                 features = remaining_features[:index] + remaining_features[(index + 1):]
-                model = sm.GLM(self.y, sm.add_constant(self.x[features]), family=sm.families.Binomial(link=self.family)).fit()
+                model = sm.GLM(self.y, sm.add_constant(self.x[features]),
+                               family=sm.families.Binomial(link=self.family)).fit()
                 criterion = model.aic if criteria == 'AIC' else model.bic
 
                 if criterion < best_criterion:

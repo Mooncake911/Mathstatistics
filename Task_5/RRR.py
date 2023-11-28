@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from mlxtend.evaluate import bias_variance_decomp
 from scipy.stats import zscore
 
 import statsmodels.api as sm
@@ -13,12 +14,14 @@ from statsmodels.stats.anova import anova_lm
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.graphics.gofplots import ProbPlot
 
+from sklearn.linear_model import Ridge, RidgeCV
+from sklearn.metrics import mean_squared_error
+
 sns.set()
 pd.options.display.expand_frame_repr = False
 
 
-# Линейная регрессия
-class LinearRegressionResearch:
+class RidgeRegressionResearch:
     def __init__(self, df, column, influence_measures_filename=None):
         self.filename = influence_measures_filename
 
@@ -28,11 +31,11 @@ class LinearRegressionResearch:
         self.y = df[column]
 
         self.model = sm.OLS.from_formula(self.formula(), data=df)
-        self.results = self.model.fit()
+        self.results = self.model.fit_regularized(alpha=1, L1_wt=1e-6, refit=True)
         self.influence = self.results.get_influence()
 
         self.residuals = self.results.resid
-        
+
     def formula(self):
         x_columns = "+".join(self.x.columns)
         return f'{self.column} ~ {x_columns}'
@@ -43,8 +46,8 @@ class LinearRegressionResearch:
         print(self.results.summary(title=self.column))
 
         # Вывод уравнения(закона) регрессии
-        coefficients = self.results.params
-        coefficients_names = self.results.params.index
+        coefficients = self.results.params[1:]
+        coefficients_names = self.x.columns
         output_str = f'Law:\n{self.column} = '
         for i, c in enumerate(coefficients_names):
             output_str += f'({coefficients[i]}) * {c}'
@@ -59,16 +62,16 @@ class LinearRegressionResearch:
         anova_result = anova_lm(self.results)
         display(anova_result)
 
-        # Получение мер влиятельности для каждого наблюдения
-        print('==============================================================================')
-        influence_measures = self.influence.summary_frame()
-        if self.filename is not None:
-            influence_measures.to_csv(f'{self.filename}.csv', index=False)
-        display(influence_measures)
+        # # Получение мер влиятельности для каждого наблюдения
+        # print('==============================================================================')
+        # influence_measures = self.influence.summary_frame()
+        # if self.filename is not None:
+        #     influence_measures.to_csv(f'{self.filename}.csv', index=False)
+        # display(influence_measures)
 
-        # Проводим тест на наличие выбросов.
-        outlier_test_results = self.results.outlier_test(method='bonferroni')
-        display(outlier_test_results)
+        # # Проводим тест на наличие выбросов.
+        # outlier_test_results = self.results.outlier_test(method='bonferroni')
+        # display(outlier_test_results)
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
@@ -100,10 +103,40 @@ class LinearRegressionResearch:
         plt.ylabel('Standardized residuals')
         plt.show()
 
-        # Residuals vs Leverage plot
-        fig, ax = plt.subplots(figsize=(12, 8))
-        sm.graphics.influence_plot(self.results, criterion="cooks", size=25, plot_alpha=0.5, ax=ax)
-        plt.title('Residuals vs Leverage', fontsize=20)
+        # # Residuals vs Leverage plot
+        # fig, ax = plt.subplots(figsize=(12, 8))
+        # sm.graphics.influence_plot(self.results, criterion="cooks", size=25, plot_alpha=0.5, ax=ax)
+        # plt.title('Residuals vs Leverage', fontsize=20)
+        # plt.show()
+
+        # Оцените Ridge-модель с кросс-валидацией
+        alphas = np.logspace(-6, 6, 13)
+        ridge_model = RidgeCV(alphas=alphas, store_cv_values=True)
+        ridge_model.fit(self.x, self.y)
+
+        # print(ridge_model.coef_, self.results.params[1:])
+        # mse_ridge = ((self.y - ridge_model.predict(self.x)) ** 2).mean()
+        # mse_ols = ((self.y - self.results.predict(self.x)) ** 2).mean()
+        # print(mse_ridge, mse_ols)
+
+        # Cross-Validation plot
+        plt.figure(figsize=(10, 6))
+        cv_mean = np.mean(ridge_model.cv_values_, axis=0)
+        cv_std = np.std(ridge_model.cv_values_, axis=0)
+
+        best_alpha = ridge_model.alpha_
+        min_mse = np.min(cv_mean)
+
+        plt.semilogx(ridge_model.alphas, cv_mean, marker='o', zorder=1)
+        plt.scatter(best_alpha, min_mse, color='red', marker='x', zorder=2)
+        plt.text(best_alpha, min_mse, f'Best alpha: {best_alpha}\nMin MSE: {min_mse:.4f}', verticalalignment='top',
+                 horizontalalignment='left', color='red')
+        plt.fill_between(ridge_model.alphas, cv_mean - cv_std, cv_mean + cv_std, alpha=0.2)
+
+        plt.xlabel('log(alpha)')
+        plt.ylabel('Mean Squared Error')
+        plt.title('Cross-Validation Plot for Ridge Regression')
+        plt.legend(['CV Mean', 'CV Interval', 'Best Point'], loc='lower right', frameon=True)
         plt.show()
 
     def run_tests(self):
@@ -150,7 +183,8 @@ class LinearRegressionResearch:
 
             for index in range(len(remaining_features)):
                 features = remaining_features[:index] + remaining_features[(index + 1):]
-                model = sm.OLS(self.y, sm.add_constant(self.x[features])).fit()
+                model = sm.OLS(self.y, sm.add_constant(self.x[features])).fit_regularized(alpha=1, L1_wt=1e-6,
+                                                                                          refit=True)
                 criterion = model.aic if criteria == 'AIC' else model.bic
 
                 if criterion < best_criterion:
