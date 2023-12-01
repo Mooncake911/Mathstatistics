@@ -5,17 +5,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from mlxtend.evaluate import bias_variance_decomp
-from scipy.stats import zscore
+from sklearn.linear_model import Ridge, RidgeCV
 
 import statsmodels.api as sm
-import statsmodels.stats.api as sms
 from statsmodels.stats.anova import anova_lm
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.graphics.gofplots import ProbPlot
 
-from sklearn.linear_model import Ridge, RidgeCV
-from sklearn.metrics import mean_squared_error
+from importlib import reload
+import mathstats as mth
+import mathstatsplots as mth_plot
+reload(mth)
+reload(mth_plot)
 
 sns.set()
 pd.options.display.expand_frame_repr = False
@@ -41,13 +42,11 @@ class RidgeRegressionResearch:
         return f'{self.column} ~ {x_columns}'
 
     def info(self):
-        """ Вызов основной информации для анализа """
-        # Использование библиотеки statsmodels для получения summary
-        print(self.results.summary(title=self.column))
+        sep_str = '=============================================================================='
+        summary = self.results.summary(title=self.column)
 
-        # Вывод уравнения(закона) регрессии
-        coefficients = self.results.params[1:]
-        coefficients_names = self.x.columns
+        coefficients = self.results.params
+        coefficients_names = ['Intercept'] + list(self.x.columns)
         output_str = f'Law:\n{self.column} = '
         for i, c in enumerate(coefficients_names):
             output_str += f'({coefficients[i]}) * {c}'
@@ -55,23 +54,19 @@ class RidgeRegressionResearch:
                 output_str += ' + '
             if i % 2 != 0:
                 output_str += '\n'
-        print(output_str)
 
-        # Проведём анализ дисперсии модели
-        print('==============================================================================')
-        anova_result = anova_lm(self.results)
-        display(anova_result)
+        law_str = output_str[:-1]
+        het_str = mth.breuschpagan_test(self.residuals, self.model)  # тест на гетероскедастичность
+        summary.add_extra_txt([law_str, sep_str, het_str])
+        print(summary)
 
-        # # Получение мер влиятельности для каждого наблюдения
-        # print('==============================================================================')
-        # influence_measures = self.influence.summary_frame()
-        # if self.filename is not None:
-        #     influence_measures.to_csv(f'{self.filename}.csv', index=False)
-        # display(influence_measures)
+        print(sep_str)
+        vif_tol_data = mth.vif_tol_test(self.x)  # тест на мультиколлинеарность
+        display(vif_tol_data)
 
-        # # Проводим тест на наличие выбросов.
-        # outlier_test_results = self.results.outlier_test(method='bonferroni')
-        # display(outlier_test_results)
+        print(sep_str)
+        anova_data = anova_lm(self.results)  # анализ дисперсии модели
+        display(anova_data)
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
@@ -80,34 +75,9 @@ class RidgeRegressionResearch:
         scatter_plots.fig.suptitle("Pair-plot with Regression Lines", y=1, fontsize=20)
         plt.show()
 
-        # Residuals vs Fitted
-        plt.scatter(self.results.predict(self.x), self.residuals)
-        plt.axhline(y=0, color='r', linestyle='--')
-        plt.title('Residuals vs Fitted')
-        plt.xlabel('Fitted values')
-        plt.ylabel('Residuals')
-        plt.show()
-
-        # Residuals vs Fitted
-        plt.scatter(self.results.predict(self.x), np.sqrt(zscore(self.residuals)))
-        plt.title('Scale-Location')
-        plt.xlabel('Fitted values')
-        plt.ylabel('\u221AStandardized residuals')
-        plt.show()
-
-        # Normal Q-Q plot
-        QQ = ProbPlot(zscore(self.residuals))
-        QQ.qqplot(line='45', alpha=0.5, lw=1)
-        plt.title('Normal Q-Q')
-        plt.xlabel('Theoretical Quantiles')
-        plt.ylabel('Standardized residuals')
-        plt.show()
-
-        # # Residuals vs Leverage plot
-        # fig, ax = plt.subplots(figsize=(12, 8))
-        # sm.graphics.influence_plot(self.results, criterion="cooks", size=25, plot_alpha=0.5, ax=ax)
-        # plt.title('Residuals vs Leverage', fontsize=20)
-        # plt.show()
+        # Other plots
+        mth_plot.plot_residuals(self.results.predict(self.x), self.residuals)
+        mth_plot.qq_plot(self.residuals)
 
         # Оцените Ridge-модель с кросс-валидацией
         alphas = np.logspace(-6, 6, 13)
@@ -136,27 +106,8 @@ class RidgeRegressionResearch:
         plt.xlabel('log(alpha)')
         plt.ylabel('Mean Squared Error')
         plt.title('Cross-Validation Plot for Ridge Regression')
-        plt.legend(['CV Mean', 'CV Interval', 'Best Point'], loc='lower right', frameon=True)
+        plt.legend(['CV Mean', 'Best Point', 'CV Interval'], loc='lower right', frameon=True)
         plt.show()
-
-    def run_tests(self):
-        """ Запуск дополнительных тестов """
-        print('==============================================================================')
-
-        # Проводим тест Бройша-Пагана (Breusch-Pagan test) на гетероскедастичность.
-        het_test = sms.het_breuschpagan(self.residuals, self.model.exog)
-        print(f'Breusch-Pagan test: \n'
-              f'LM statistic: {het_test[0]}      LM-Test p-value: {het_test[1]:} \n'
-              f'F-statistic: {het_test[2]}       F-Test p-value: {het_test[3]:}')
-
-        print('==============================================================================')
-
-        # Проверяем модель на мультиколлинеарность данных.
-        vif_tol_data = pd.DataFrame()
-        vif_tol_data["Variable"] = self.x.columns
-        vif_tol_data["VIF"] = [variance_inflation_factor(self.x.values, i) for i in range(self.x.shape[1])]
-        vif_tol_data["Tolerance"] = 1 / vif_tol_data["VIF"]
-        display(vif_tol_data)
 
     def stepwise_selection(self, criteria: str = 'AIC'):
         """

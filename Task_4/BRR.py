@@ -2,16 +2,19 @@ from IPython.display import display
 import pandas as pd
 import numpy as np
 
-import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.metrics import confusion_matrix, roc_curve, auc
+from sklearn.metrics import roc_curve
+
+from importlib import reload
+import mathstats as mth
+import mathstatsplots as mth_plot
+reload(mth)
+reload(mth_plot)
 
 import statsmodels.api as sm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 logit = sm.genmod.families.links.Logit()
 probit = sm.genmod.families.links.Probit()
-
 
 sns.set()
 pd.options.display.expand_frame_repr = False
@@ -33,7 +36,6 @@ class BinomialRegressionResearch:
 
         self.y_prob = self.results.predict(self.x)
         self.fpr, self.tpr, self.thresholds = roc_curve(self.y, self.y_prob)
-        self.roc_auc = auc(self.fpr, self.tpr)
         self.y_pred = self.optimal_y_pred() if threshold is None else (self.y_prob > threshold).astype(int)
 
     def formula(self):
@@ -52,72 +54,28 @@ class BinomialRegressionResearch:
         return (self.y_prob > optimal_threshold).astype(int)
 
     def info(self):
-        """ Вызов основной информации для анализа """
-        # Использование библиотеки statsmodels для получения summary
-        print(self.results.summary(title=self.column))
+        sep_str = '=============================================================================='
+        summary = self.results.summary(title=self.column)
+        law_str = mth.law_func(self.column, self.results)  # формула
+        summary.add_extra_txt([law_str])
+        print(summary)
 
-        # Вывод уравнения(закона) регрессии
-        coefficients = self.results.params
-        coefficients_names = self.results.params.index
-        output_str = f'Law:\n{self.column} = '
-        for i, c in enumerate(coefficients_names):
-            output_str += f'({coefficients[i]}) * {c}'
-            if i < len(coefficients_names) - 1:
-                output_str += ' + '
-            if i % 2 != 0:
-                output_str += '\n'
-        print(output_str)
+        print(sep_str)
+        vif_tol_data = mth.vif_tol_test(self.x)  # тест на мультиколлинеарность
+        display(vif_tol_data)
 
-        # Получение мер влиятельности для каждого наблюдения
-        print('==============================================================================')
-        influence_measures = self.influence.summary_frame()
+        print(sep_str)
+        influence_measures = self.influence.summary_frame()  # таблица влиятельности для каждого наблюдения
         # influence_measures = influence_measures.sort_values("cooks_d", ascending=False)
         if self.filename is not None:
             influence_measures.to_csv(f'{self.filename}.csv', index=False)
         display(influence_measures)
 
-    def draw_plots(self, ):
+    def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
-        # Residuals vs Leverage plot
-        fig, ax = plt.subplots(figsize=(12, 8))
-        fig = self.influence.plot_influence(criterion="cooks", size=25, plot_alpha=0.5, ax=ax)
-        fig.tight_layout(pad=1.0)
-
-        # Confusion Matrix plot
-        conf_matrix = confusion_matrix(self.y, self.y_pred)
-        cnf_matrix_percent = conf_matrix.astype('float') / conf_matrix.sum(axis=1)[:, np.newaxis]
-
-        true_class_names = ['True', 'False']
-        predicted_class_names = ['Predicted True', 'Predicted False']
-        df_cnf_matrix = pd.DataFrame(conf_matrix, index=true_class_names, columns=predicted_class_names)
-        df_cnf_matrix_percent = pd.DataFrame(cnf_matrix_percent, index=true_class_names, columns=predicted_class_names)
-
-        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-        fig.suptitle(f'Confusion Matrix')
-        sns.heatmap(df_cnf_matrix, annot=True, ax=axes[0])
-        axes[0].title.set_text('Perceptron: values')
-        sns.heatmap(df_cnf_matrix_percent, annot=True, ax=axes[1])
-        axes[1].title.set_text('Perceptron: %')
-
-        # ROC plot
-        plt.figure(figsize=(5, 5))
-        plt.plot(self.fpr, self.tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {self.roc_auc:.2f})')
-        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', label='Random')
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title('Receiver Operating Characteristic (ROC) Curve')
-        plt.legend(loc='lower right', frameon=True)
-        plt.show()
-
-    def run_tests(self):
-        """ Запуск дополнительных тестов """
-        # Проверяем модель на мультиколлинеарность данных.
-        print('==============================================================================')
-        vif_tol_data = pd.DataFrame()
-        vif_tol_data["Variable"] = self.x.columns
-        vif_tol_data["VIF"] = [variance_inflation_factor(self.x.values, i) for i in range(self.x.shape[1])]
-        vif_tol_data["Tolerance"] = 1 / vif_tol_data["VIF"]
-        display(vif_tol_data)
+        mth_plot.confusion_matrix_plot(self.y, self.y_pred)
+        mth_plot.plot_influence(self.influence)
+        mth_plot.roc_plot(fpr=self.fpr, tpr=self.tpr)
 
     def stepwise_selection(self, criteria: str = 'AIC'):
         """

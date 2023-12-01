@@ -1,11 +1,14 @@
 from IPython.display import display
 import pandas as pd
+import numpy as np
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 import statsmodels.api as sm
 from statsmodels.stats.anova import anova_lm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.graphics.gofplots import ProbPlot
 
 from importlib import reload
 import mathstats as mth
@@ -18,8 +21,9 @@ pd.options.display.expand_frame_repr = False
 
 
 # Линейная регрессия
-class LinearRegressionResearch:
-    def __init__(self, df, column, influence_measures_filename=None):
+class QuantRegressionResearch:
+    def __init__(self, df, column, q=0.5, q_step=0.1, influence_measures_filename=None):
+        self.q_step = q_step
         self.filename = influence_measures_filename
 
         self.df = df
@@ -27,9 +31,9 @@ class LinearRegressionResearch:
         self.x = df.drop(columns=column)
         self.y = df[column]
 
-        self.model = sm.OLS.from_formula(self.formula(), data=df)
-        self.results = self.model.fit()
-        self.influence = self.results.get_influence()
+        self.quantile = q
+        self.model = sm.QuantReg.from_formula(self.formula(), data=df)
+        self.results = self.model.fit(q=self.quantile, method='powell')
 
         self.residuals = self.results.resid
 
@@ -40,7 +44,7 @@ class LinearRegressionResearch:
     def info(self):
         sep_str = '=============================================================================='
         summary = self.results.summary(title=self.column)
-        law_str = mth.law_func(self.column, self.results)  # формула
+        law_str = mth.law_func(self.column, self.results)
         het_str = mth.breuschpagan_test(self.residuals, self.model)  # тест на гетероскедастичность
         summary.add_extra_txt([law_str, sep_str, het_str])
         print(summary)
@@ -53,27 +57,47 @@ class LinearRegressionResearch:
         anova_data = anova_lm(self.results)  # анализ дисперсии модели
         display(anova_data)
 
-        print(sep_str)
-        influence_measures = self.influence.summary_frame()  # таблицы влиятельности для каждого наблюдения
-        if self.filename is not None:
-            influence_measures.to_csv(f'{self.filename}.csv', index=False)
-        display(influence_measures)
-
-        print(sep_str)
-        outlier_test_results = self.results.outlier_test(method='bonferroni')  # тест на наличие выбросов.
-        display(outlier_test_results)
-
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
         # Scatter plots
-        scatter_plots = sns.pairplot(self.df, x_vars=self.df.columns, y_vars=self.df.columns, kind='reg')
+        scatter_plots = sns.pairplot(self.df, x_vars=self.df.columns, y_vars=self.df.columns, kind='reg', corner=True)
         scatter_plots.fig.suptitle("Pair-plot with Regression Lines", y=1, fontsize=20)
         plt.show()
 
         # Other plots
-        mth_plot.plot_residuals(y_pred=self.results.predict(self.x), residuals=self.residuals)
-        mth_plot.plot_influence(self.influence)
+        mth_plot.plot_residuals(self.results.predict(self.x), self.residuals)
         mth_plot.qq_plot(self.residuals)
+
+        # Coefficients vs Quantiles plot
+        quantiles = np.arange(self.q_step, 1, self.q_step)
+        params_names = self.results.params.index
+
+        fig, axs = plt.subplots(len(params_names), 1, figsize=(8, 20))
+        fig.suptitle('Coefficients vs Quantiles\n')
+
+        params_groups = np.empty((len(quantiles), len(params_names)))
+        for i, quantile in enumerate(quantiles):
+            quant_reg = sm.QuantReg(self.y, sm.add_constant(self.x))
+            quant_reg_results = quant_reg.fit(q=quantile)
+            params_groups[i] = quant_reg_results.params
+
+        ols_reg_results = sm.OLS(self.y, sm.add_constant(self.x)).fit()
+        add_params = ols_reg_results.params
+        add_conf_intervals = ols_reg_results.conf_int()
+
+        for i, p in enumerate(params_names):
+            axs[i].set_xlim(0, 1)
+            coefficients = params_groups[:, i]
+            axs[i].plot(quantiles, coefficients, marker='o')
+            axs[i].axhline(add_params[i], color='r')
+            axs[i].fill_between(x=axs[i].get_xlim(),
+                                y1=add_conf_intervals[0][i],
+                                y2=add_conf_intervals[1][i],
+                                color='darkred', alpha=0.1, lw=2, linestyle='--', edgecolor='red')
+            axs[i].set_title(p)
+
+        plt.tight_layout()
+        plt.show()
 
     def stepwise_selection(self, criteria: str = 'AIC'):
         """
@@ -100,7 +124,7 @@ class LinearRegressionResearch:
 
             for index in range(len(remaining_features)):
                 features = remaining_features[:index] + remaining_features[(index + 1):]
-                model = sm.OLS(self.y, sm.add_constant(self.x[features])).fit()
+                model = sm.QuantReg(self.y, sm.add_constant(self.x[features])).fit(q=self.quantile)
                 criterion = model.aic if criteria == 'AIC' else model.bic
 
                 if criterion < best_criterion:
