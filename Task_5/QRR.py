@@ -7,8 +7,6 @@ import seaborn as sns
 
 import statsmodels.api as sm
 from statsmodels.stats.anova import anova_lm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-from statsmodels.graphics.gofplots import ProbPlot
 
 from importlib import reload
 import mathstats as mth
@@ -67,37 +65,7 @@ class QuantRegressionResearch:
         # Other plots
         mth_plot.plot_residuals(self.results.predict(self.x), self.residuals)
         mth_plot.qq_plot(self.residuals)
-
-        # Coefficients vs Quantiles plot
-        quantiles = np.arange(self.q_step, 1, self.q_step)
-        params_names = self.results.params.index
-
-        fig, axs = plt.subplots(len(params_names), 1, figsize=(8, 20))
-        fig.suptitle('Coefficients vs Quantiles\n')
-
-        params_groups = np.empty((len(quantiles), len(params_names)))
-        for i, quantile in enumerate(quantiles):
-            quant_reg = sm.QuantReg(self.y, sm.add_constant(self.x))
-            quant_reg_results = quant_reg.fit(q=quantile)
-            params_groups[i] = quant_reg_results.params
-
-        ols_reg_results = sm.OLS(self.y, sm.add_constant(self.x)).fit()
-        add_params = ols_reg_results.params
-        add_conf_intervals = ols_reg_results.conf_int()
-
-        for i, p in enumerate(params_names):
-            axs[i].set_xlim(0, 1)
-            coefficients = params_groups[:, i]
-            axs[i].plot(quantiles, coefficients, marker='o')
-            axs[i].axhline(add_params[i], color='r')
-            axs[i].fill_between(x=axs[i].get_xlim(),
-                                y1=add_conf_intervals[0][i],
-                                y2=add_conf_intervals[1][i],
-                                color='darkred', alpha=0.1, lw=2, linestyle='--', edgecolor='red')
-            axs[i].set_title(p)
-
-        plt.tight_layout()
-        plt.show()
+        mth_plot.params_quantiles_plot(x=self.x, y=self.y, q_step=self.q_step, params_names=self.results.params.index)
 
     def stepwise_selection(self, criteria: str = 'AIC'):
         """

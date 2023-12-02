@@ -1,10 +1,7 @@
 from IPython.display import display
 import pandas as pd
-import numpy as np
 
 import seaborn as sns
-
-from sklearn.metrics import roc_curve
 
 from importlib import reload
 import mathstats as mth
@@ -22,7 +19,7 @@ pd.options.display.expand_frame_repr = False
 
 # Биномиальная регрессия
 class BinomialRegressionResearch:
-    def __init__(self, df, column, family=None, threshold=None, influence_measures_filename=None):
+    def __init__(self, df, column, family=logit, threshold=0.5, influence_measures_filename=None):
         self.family = family
         self.filename = influence_measures_filename
 
@@ -32,11 +29,13 @@ class BinomialRegressionResearch:
 
         self.model = sm.GLM.from_formula(self.formula(), family=sm.families.Binomial(link=self.family), data=df)
         self.results = self.model.fit()
+
         self.influence = self.results.get_influence()
+        self.residuals = self.results.resid_deviance
+        self.exogenous = self.results.model.exog
 
         self.y_prob = self.results.predict(self.x)
-        self.fpr, self.tpr, self.thresholds = roc_curve(self.y, self.y_prob)
-        self.y_pred = self.optimal_y_pred() if threshold is None else (self.y_prob > threshold).astype(int)
+        self.y_pred = (self.y_prob > threshold).astype(int)
 
     def formula(self):
         x_columns = ''
@@ -47,22 +46,21 @@ class BinomialRegressionResearch:
                 x_columns += f'{c}+'
         return f'{self.column} ~ {x_columns[:-1]}'
 
-    def optimal_y_pred(self):
-        # Находим оптимальное пороговое значение
-        optimal_idx = np.argmax(self.tpr - self.fpr)
-        optimal_threshold = self.thresholds[optimal_idx]
-        return (self.y_prob > optimal_threshold).astype(int)
-
     def info(self):
         sep_str = '=============================================================================='
         summary = self.results.summary(title=self.column)
         law_str = mth.law_func(self.column, self.results)  # формула
-        summary.add_extra_txt([law_str])
+        het_str = mth.white_test(self.residuals, self.exogenous)  # тест на гетероскедастичность
+        summary.add_extra_txt([law_str, sep_str, het_str])
         print(summary)
 
         print(sep_str)
         vif_tol_data = mth.vif_tol_test(self.x)  # тест на мультиколлинеарность
         display(vif_tol_data)
+
+        print(sep_str)
+        wald_data = mth.wald_test(self.results)  # анализ дисперсии модели
+        display(wald_data)
 
         print(sep_str)
         influence_measures = self.influence.summary_frame()  # таблица влиятельности для каждого наблюдения
@@ -74,8 +72,10 @@ class BinomialRegressionResearch:
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
         mth_plot.confusion_matrix_plot(self.y, self.y_pred)
+        mth_plot.plot_residuals(self.y_prob, self.residuals)
         mth_plot.plot_influence(self.influence)
-        mth_plot.roc_plot(fpr=self.fpr, tpr=self.tpr)
+        mth_plot.qq_plot(self.residuals)
+        mth_plot.roc_plot(self.y, self.y_prob)
 
     def stepwise_selection(self, criteria: str = 'AIC'):
         """

@@ -29,9 +29,10 @@ class LinearRegressionResearch:
 
         self.model = sm.OLS.from_formula(self.formula(), data=df)
         self.results = self.model.fit()
-        self.influence = self.results.get_influence()
 
+        self.influence = self.results.get_influence()
         self.residuals = self.results.resid
+        self.exogenous = self.model.exog
 
     def formula(self):
         x_columns = "+".join(self.x.columns)
@@ -41,7 +42,7 @@ class LinearRegressionResearch:
         sep_str = '=============================================================================='
         summary = self.results.summary(title=self.column)
         law_str = mth.law_func(self.column, self.results)  # формула
-        het_str = mth.breuschpagan_test(self.residuals, self.model)  # тест на гетероскедастичность
+        het_str = mth.breuschpagan_test(self.residuals, self.exogenous)  # тест на гетероскедастичность
         summary.add_extra_txt([law_str, sep_str, het_str])
         print(summary)
 
@@ -50,8 +51,12 @@ class LinearRegressionResearch:
         display(vif_tol_data)
 
         print(sep_str)
-        anova_data = anova_lm(self.results)  # анализ дисперсии модели
-        display(anova_data)
+        wald_data = mth.wald_test(self.results)  # анализ дисперсии модели
+        display(wald_data)
+
+        # print(sep_str)
+        # anova_data = anova_lm(self.results, test="F")  # (не совсем) анализ дисперсии модели
+        # display(anova_data)
 
         print(sep_str)
         influence_measures = self.influence.summary_frame()  # таблицы влиятельности для каждого наблюдения

@@ -1,16 +1,11 @@
 from IPython.display import display
 import pandas as pd
-import numpy as np
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.linear_model import Ridge, RidgeCV
-
 import statsmodels.api as sm
 from statsmodels.stats.anova import anova_lm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-from statsmodels.graphics.gofplots import ProbPlot
 
 from importlib import reload
 import mathstats as mth
@@ -23,7 +18,7 @@ pd.options.display.expand_frame_repr = False
 
 
 class RidgeRegressionResearch:
-    def __init__(self, df, column, influence_measures_filename=None):
+    def __init__(self, df, column, alpha=1, influence_measures_filename=None):
         self.filename = influence_measures_filename
 
         self.df = df
@@ -31,11 +26,13 @@ class RidgeRegressionResearch:
         self.x = df.drop(columns=column)
         self.y = df[column]
 
+        self.alpha = alpha
         self.model = sm.OLS.from_formula(self.formula(), data=df)
-        self.results = self.model.fit_regularized(alpha=1, L1_wt=1e-6, refit=True)
-        self.influence = self.results.get_influence()
+        self.results = self.model.fit_regularized(alpha=self.alpha, L1_wt=1e-6, refit=True)
 
+        self.influence = self.results.get_influence()
         self.residuals = self.results.resid
+        self.exogenous = self.model.exog
 
     def formula(self):
         x_columns = "+".join(self.x.columns)
@@ -55,8 +52,8 @@ class RidgeRegressionResearch:
             if i % 2 != 0:
                 output_str += '\n'
 
-        law_str = output_str[:-1]
-        het_str = mth.breuschpagan_test(self.residuals, self.model)  # тест на гетероскедастичность
+        law_str = output_str
+        het_str = mth.breuschpagan_test(self.residuals, self.exogenous)  # тест на гетероскедастичность
         summary.add_extra_txt([law_str, sep_str, het_str])
         print(summary)
 
@@ -65,8 +62,22 @@ class RidgeRegressionResearch:
         display(vif_tol_data)
 
         print(sep_str)
-        anova_data = anova_lm(self.results)  # анализ дисперсии модели
-        display(anova_data)
+        wald_data = mth.wald_test(self.results)  # анализ дисперсии модели
+        display(wald_data)
+
+        # print(sep_str)
+        # anova_data = anova_lm(self.results)  # (не совсем) анализ дисперсии модели
+        # display(anova_data)
+
+        print(sep_str)
+        influence_measures = self.influence.summary_frame()  # таблицы влиятельности для каждого наблюдения
+        if self.filename is not None:
+            influence_measures.to_csv(f'{self.filename}.csv', index=False)
+        display(influence_measures)
+
+        print(sep_str)
+        outlier_test_results = self.results.outlier_test(method='bonferroni')  # тест на наличие выбросов.
+        display(outlier_test_results)
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
@@ -77,37 +88,8 @@ class RidgeRegressionResearch:
 
         # Other plots
         mth_plot.plot_residuals(self.results.predict(self.x), self.residuals)
+        mth_plot.cross_validation_plot(self.x, self.y)
         mth_plot.qq_plot(self.residuals)
-
-        # Оцените Ridge-модель с кросс-валидацией
-        alphas = np.logspace(-6, 6, 13)
-        ridge_model = RidgeCV(alphas=alphas, store_cv_values=True)
-        ridge_model.fit(self.x, self.y)
-
-        # print(ridge_model.coef_, self.results.params[1:])
-        # mse_ridge = ((self.y - ridge_model.predict(self.x)) ** 2).mean()
-        # mse_ols = ((self.y - self.results.predict(self.x)) ** 2).mean()
-        # print(mse_ridge, mse_ols)
-
-        # Cross-Validation plot
-        plt.figure(figsize=(10, 6))
-        cv_mean = np.mean(ridge_model.cv_values_, axis=0)
-        cv_std = np.std(ridge_model.cv_values_, axis=0)
-
-        best_alpha = ridge_model.alpha_
-        min_mse = np.min(cv_mean)
-
-        plt.semilogx(ridge_model.alphas, cv_mean, marker='o', zorder=1)
-        plt.scatter(best_alpha, min_mse, color='red', marker='x', zorder=2)
-        plt.text(best_alpha, min_mse, f'Best alpha: {best_alpha}\nMin MSE: {min_mse:.4f}', verticalalignment='top',
-                 horizontalalignment='left', color='red')
-        plt.fill_between(ridge_model.alphas, cv_mean - cv_std, cv_mean + cv_std, alpha=0.2)
-
-        plt.xlabel('log(alpha)')
-        plt.ylabel('Mean Squared Error')
-        plt.title('Cross-Validation Plot for Ridge Regression')
-        plt.legend(['CV Mean', 'Best Point', 'CV Interval'], loc='lower right', frameon=True)
-        plt.show()
 
     def stepwise_selection(self, criteria: str = 'AIC'):
         """
@@ -134,7 +116,7 @@ class RidgeRegressionResearch:
 
             for index in range(len(remaining_features)):
                 features = remaining_features[:index] + remaining_features[(index + 1):]
-                model = sm.OLS(self.y, sm.add_constant(self.x[features])).fit_regularized(alpha=1, L1_wt=1e-6,
+                model = sm.OLS(self.y, sm.add_constant(self.x[features])).fit_regularized(alpha=self.alpha, L1_wt=1e-6,
                                                                                           refit=True)
                 criterion = model.aic if criteria == 'AIC' else model.bic
 
