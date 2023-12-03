@@ -41,6 +41,7 @@ def white_test(results):
 
 
 def wald_test(results, use_f=True):
+    """ Анализ дисперсии модели. """
     wald_data = []
     params_names = list(results.model.exog_names)
     len_pn = len(params_names)

@@ -1,40 +1,38 @@
 from IPython.display import display
+import seaborn as sns
 import pandas as pd
 
-import seaborn as sns
+import statsmodels.api as sm
 
 from importlib import reload
-import mathstats as mth
 import mathstatsplots as mth_plot
-reload(mth)
+import mathstats as mth
 reload(mth_plot)
-
-import statsmodels.api as sm
-logit = sm.genmod.families.links.Logit()
-probit = sm.genmod.families.links.Probit()
+reload(mth)
 
 sns.set()
 pd.options.display.expand_frame_repr = False
 
+logit = sm.genmod.families.links.Logit()
+probit = sm.genmod.families.links.Probit()
+
 
 # Биномиальная регрессия
 class BinomialRegressionResearch:
-    def __init__(self, df, column, family=logit, threshold=0.5, influence_measures_filename=None):
-        self.family = family
-        self.filename = influence_measures_filename
-
+    def __init__(self, df, column, family=logit, threshold=0.5):
+        self.df = df
         self.column = column
         self.x = df.drop(columns=column)
         self.y = df[column]
 
+        self.family = family
         self.model = sm.GLM.from_formula(self.formula(), family=sm.families.Binomial(link=self.family), data=df)
         self.results = self.model.fit()
+        self.y_prob = self.results.predict(self.x)
+        self.y_pred = (self.y_prob > threshold).astype(int)
 
         self.influence = self.results.get_influence()
         self.residuals = self.results.resid_deviance
-
-        self.y_prob = self.results.predict(self.x)
-        self.y_pred = (self.y_prob > threshold).astype(int)
 
     def formula(self):
         x_columns = ''
@@ -64,15 +62,13 @@ class BinomialRegressionResearch:
         print(sep_str)
         influence_measures = self.influence.summary_frame()  # таблица влиятельности для каждого наблюдения
         # influence_measures = influence_measures.sort_values("cooks_d", ascending=False)
-        if self.filename is not None:
-            influence_measures.to_csv(f'{self.filename}.csv', index=False)
         display(influence_measures)
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
         mth_plot.confusion_matrix_plot(self.y, self.y_pred)
-        mth_plot.plot_residuals(self.y_prob, self.residuals)
-        mth_plot.plot_influence(self.influence)
+        mth_plot.residuals_plot(self.y_prob, self.residuals)
+        mth_plot.influence_plot(self.influence)
         mth_plot.qq_plot(self.residuals)
         mth_plot.roc_plot(self.y, self.y_prob)
 

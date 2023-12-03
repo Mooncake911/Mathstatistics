@@ -12,7 +12,37 @@ import statsmodels.api as sm
 from statsmodels.graphics.gofplots import ProbPlot
 
 
-def plot_residuals(y_pred, residuals):
+def pair_scatter_plots(df, q=None, alpha=None):
+    """ Попарные графики распределения зависимой переменной с зависимыми """
+    def ridge_reg_plot(x, y, **kwargs):
+        model = sm.OLS(y, sm.add_constant(x))
+        results = model.fit_regularized(alpha=alpha, L1_wt=0, refit=True)
+        y_pred = results.predict(sm.add_constant(x))
+        plt.plot(x, y_pred, **kwargs)
+
+    def quant_reg_plot(x, y, **kwargs):
+        model = sm.QuantReg(y, sm.add_constant(x))
+        results = model.fit(q=q, method='powell')
+        y_pred = results.predict(sm.add_constant(x))
+        plt.plot(x, y_pred, **kwargs)
+
+    grid = sns.PairGrid(df)
+    grid.map_lower(sns.regplot)
+    grid.map_upper(sns.regplot)
+    grid.map_diag(sns.histplot)
+
+    if q is not None:
+        grid.map_lower(quant_reg_plot, color='darkorange')
+        grid.map_upper(quant_reg_plot, color='darkorange')
+    if alpha is not None:
+        grid.map_lower(ridge_reg_plot, color='darkorange')
+        grid.map_upper(ridge_reg_plot, color='darkorange')
+
+    plt.suptitle("Pair-plot with Regression Lines", y=1.02, fontsize=20)
+    plt.show()
+
+
+def residuals_plot(y_pred, residuals):
     """ Просто график распределения остатков """
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
@@ -33,7 +63,7 @@ def plot_residuals(y_pred, residuals):
     plt.show()
 
 
-def plot_influence(influence):
+def influence_plot(influence):
     """ График влияния в регрессии """
     fig, ax = plt.subplots(figsize=(12, 8))
     influence.plot_influence(criterion="cooks", size=25, plot_alpha=0.5, ax=ax)
@@ -78,7 +108,7 @@ def roc_plot(y, y_prob):
     axes[1].step(recall, precision, color='b', alpha=0.2, where='post', label='PR curve')
     axes[1].fill_between(recall, precision, step='post', alpha=0.2, color='b')
     axes[1].scatter(recall[optimal_idx], precision[optimal_idx], marker='o', color='red',
-                label=f'Best Threshold: {optimal_threshold:.2f}')
+                    label=f'Best Threshold: {optimal_threshold:.2f}')
     axes[1].text(0.5, 0.5, f'AP = {average_precision:0.2f}', fontsize=20,
                  horizontalalignment='center', verticalalignment='center')
     axes[1].set_xlabel('Recall')
@@ -109,7 +139,7 @@ def confusion_matrix_plot(y, y_pred):
 
 
 def cross_validation_plot(x, y):
-    """ График кросс-валидации alpha"""
+    """ График кросс-валидации для alpha """
     alphas = np.logspace(-6, 6, 13)
     ridge_model = RidgeCV(alphas=alphas, store_cv_values=True)
     ridge_model.fit(x, y)
@@ -141,10 +171,10 @@ def cross_validation_plot(x, y):
 
 
 def params_quantiles_plot(x, y, q_step, params_names):
-    # Coefficients vs Quantiles plot
+    """ График показывающий зависимость между коэффициентами и квантилями """
     quantiles = np.arange(q_step, 1, q_step)
 
-    fig, axs = plt.subplots(len(params_names), 1, figsize=(12, 20))
+    fig, axs = plt.subplots(len(params_names), 1, figsize=(12, len(params_names) * 2.5))
     fig.suptitle('Coefficients vs Quantiles\n')
 
     params_groups = np.empty((len(quantiles), len(params_names)))

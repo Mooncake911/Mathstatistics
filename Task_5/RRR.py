@@ -1,17 +1,15 @@
 from IPython.display import display
+import seaborn as sns
 import pandas as pd
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 import statsmodels.api as sm
-from statsmodels.stats.anova import anova_lm
+# from statsmodels.stats.anova import anova_lm
 
 from importlib import reload
-import mathstats as mth
 import mathstatsplots as mth_plot
-reload(mth)
+import mathstats as mth
 reload(mth_plot)
+reload(mth)
 
 sns.set()
 pd.options.display.expand_frame_repr = False
@@ -19,9 +17,7 @@ pd.options.display.expand_frame_repr = False
 
 # Гребневая регрессия
 class RidgeRegressionResearch:
-    def __init__(self, df, column, alpha=1, influence_measures_filename=None):
-        self.filename = influence_measures_filename
-
+    def __init__(self, df, column, alpha=1):
         self.df = df
         self.column = column
         self.x = df.drop(columns=column)
@@ -30,8 +26,10 @@ class RidgeRegressionResearch:
         self.alpha = alpha
         self.model = sm.OLS.from_formula(self.formula(), data=df)
         self.results = self.model.fit_regularized(alpha=self.alpha, L1_wt=0, refit=True)
+        self.y_pred = self.results.predict(self.x)
+
         # self.influence = self.results.get_influence()
-        self.residuals = self.results.model.endog - self.results.predict(self.x)
+        self.residuals = self.results.model.endog - self.y_pred
 
     def formula(self):
         x_columns = "+".join(self.x.columns)
@@ -69,13 +67,8 @@ class RidgeRegressionResearch:
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
-        # Scatter plots
-        scatter_plots = sns.pairplot(self.df, x_vars=self.df.columns, y_vars=self.df.columns, kind='reg')
-        scatter_plots.fig.suptitle("Pair-plot with Regression Lines", y=1, fontsize=20)
-        plt.show()
-
-        # Other plots
-        mth_plot.plot_residuals(self.results.predict(self.x), self.residuals)
+        mth_plot.pair_scatter_plots(self.df, alpha=self.alpha)
+        mth_plot.residuals_plot(self.y_pred, self.residuals)
         mth_plot.cross_validation_plot(self.x, self.y)
         mth_plot.qq_plot(self.residuals)
 

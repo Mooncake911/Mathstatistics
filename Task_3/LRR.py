@@ -1,17 +1,15 @@
 from IPython.display import display
+import seaborn as sns
 import pandas as pd
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 import statsmodels.api as sm
-from statsmodels.stats.anova import anova_lm
+# from statsmodels.stats.anova import anova_lm
 
 from importlib import reload
-import mathstats as mth
 import mathstatsplots as mth_plot
-reload(mth)
+import mathstats as mth
 reload(mth_plot)
+reload(mth)
 
 sns.set()
 pd.options.display.expand_frame_repr = False
@@ -19,9 +17,7 @@ pd.options.display.expand_frame_repr = False
 
 # Линейная регрессия
 class LinearRegressionResearch:
-    def __init__(self, df, column, influence_measures_filename=None):
-        self.filename = influence_measures_filename
-
+    def __init__(self, df, column):
         self.df = df
         self.column = column
         self.x = df.drop(columns=column)
@@ -29,11 +25,10 @@ class LinearRegressionResearch:
 
         self.model = sm.OLS.from_formula(self.formula(), data=df)
         self.results = self.model.fit()
+        self.y_pred = self.results.predict(self.x)
 
         self.influence = self.results.get_influence()
         self.residuals = self.results.resid
-
-        self.exogenous = self.model.exog
 
     def formula(self):
         x_columns = "+".join(self.x.columns)
@@ -61,8 +56,6 @@ class LinearRegressionResearch:
 
         print(sep_str)
         influence_measures = self.influence.summary_frame()  # таблицы влиятельности для каждого наблюдения
-        if self.filename is not None:
-            influence_measures.to_csv(f'{self.filename}.csv', index=False)
         display(influence_measures)
 
         print(sep_str)
@@ -71,14 +64,9 @@ class LinearRegressionResearch:
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
-        # Scatter plots
-        scatter_plots = sns.pairplot(self.df, x_vars=self.df.columns, y_vars=self.df.columns, kind='reg')
-        scatter_plots.fig.suptitle("Pair-plot with Regression Lines", y=1, fontsize=20)
-        plt.show()
-
-        # Other plots
-        mth_plot.plot_residuals(y_pred=self.results.predict(self.x), residuals=self.residuals)
-        mth_plot.plot_influence(self.influence)
+        mth_plot.pair_scatter_plots(self.df)
+        mth_plot.residuals_plot(self.y_pred, self.residuals)
+        mth_plot.influence_plot(self.influence)
         mth_plot.qq_plot(self.residuals)
 
     def stepwise_selection(self, criteria: str = 'AIC'):

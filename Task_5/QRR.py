@@ -1,18 +1,15 @@
 from IPython.display import display
-import pandas as pd
-import numpy as np
-
-import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
 
 import statsmodels.api as sm
-from statsmodels.stats.anova import anova_lm
+# from statsmodels.stats.anova import anova_lm
 
 from importlib import reload
-import mathstats as mth
 import mathstatsplots as mth_plot
-reload(mth)
+import mathstats as mth
 reload(mth_plot)
+reload(mth)
 
 sns.set()
 pd.options.display.expand_frame_repr = False
@@ -20,18 +17,17 @@ pd.options.display.expand_frame_repr = False
 
 # Квантильная регрессия
 class QuantRegressionResearch:
-    def __init__(self, df, column, q=0.5, q_step=0.1, influence_measures_filename=None):
-        self.q_step = q_step
-        self.filename = influence_measures_filename
-
+    def __init__(self, df, column, q=0.5, q_step=0.1):
         self.df = df
         self.column = column
         self.x = df.drop(columns=column)
         self.y = df[column]
 
+        self.q_step = q_step
         self.quantile = q
         self.model = sm.QuantReg.from_formula(self.formula(), data=df)
         self.results = self.model.fit(q=self.quantile, method='powell')
+        self.y_pred = self.results.predict(self.x)
 
         # self.influence = self.results.get_influence()
         self.residuals = self.results.resid
@@ -53,18 +49,17 @@ class QuantRegressionResearch:
         display(vif_tol_data)
 
         print(sep_str)
-        anova_data = anova_lm(self.results)  # анализ дисперсии модели
-        display(anova_data)
+        wald_data = mth.wald_test(self.results)  # анализ дисперсии модели
+        display(wald_data)
+
+        # print(sep_str)
+        # anova_data = anova_lm(self.results)  # анализ дисперсии модели
+        # display(anova_data)
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
-        # Scatter plots
-        scatter_plots = sns.pairplot(self.df, x_vars=self.df.columns, y_vars=self.df.columns, kind='reg', corner=True)
-        scatter_plots.fig.suptitle("Pair-plot with Regression Lines", y=1, fontsize=20)
-        plt.show()
-
-        # Other plots
-        mth_plot.plot_residuals(self.results.predict(self.x), self.residuals)
+        mth_plot.pair_scatter_plots(self.df, q=self.quantile)
+        mth_plot.residuals_plot(self.y_pred, self.residuals)
         mth_plot.params_quantiles_plot(x=self.x, y=self.y, q_step=self.q_step, params_names=self.results.params.index)
         mth_plot.qq_plot(self.residuals)
 
