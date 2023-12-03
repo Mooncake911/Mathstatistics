@@ -32,6 +32,7 @@ class LinearRegressionResearch:
 
         self.influence = self.results.get_influence()
         self.residuals = self.results.resid
+
         self.exogenous = self.model.exog
 
     def formula(self):
@@ -41,8 +42,8 @@ class LinearRegressionResearch:
     def info(self):
         sep_str = '=============================================================================='
         summary = self.results.summary(title=self.column)
-        law_str = mth.law_func(self.column, self.results)  # формула
-        het_str = mth.breuschpagan_test(self.residuals, self.exogenous)  # тест на гетероскедастичность
+        law_str = mth.law_func(self.results)  # формула
+        het_str = mth.breuschpagan_test(self.results)  # тест на гетероскедастичность
         summary.add_extra_txt([law_str, sep_str, het_str])
         print(summary)
 

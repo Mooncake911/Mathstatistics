@@ -32,7 +32,6 @@ class BinomialRegressionResearch:
 
         self.influence = self.results.get_influence()
         self.residuals = self.results.resid_deviance
-        self.exogenous = self.results.model.exog
 
         self.y_prob = self.results.predict(self.x)
         self.y_pred = (self.y_prob > threshold).astype(int)
@@ -49,8 +48,8 @@ class BinomialRegressionResearch:
     def info(self):
         sep_str = '=============================================================================='
         summary = self.results.summary(title=self.column)
-        law_str = mth.law_func(self.column, self.results)  # формула
-        het_str = mth.white_test(self.residuals, self.exogenous)  # тест на гетероскедастичность
+        law_str = mth.law_func(self.results)  # формула
+        het_str = mth.white_test(self.results)  # тест на гетероскедастичность
         summary.add_extra_txt([law_str, sep_str, het_str])
         print(summary)
 

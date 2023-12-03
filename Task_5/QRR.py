@@ -18,7 +18,7 @@ sns.set()
 pd.options.display.expand_frame_repr = False
 
 
-# Линейная регрессия
+# Квантильная регрессия
 class QuantRegressionResearch:
     def __init__(self, df, column, q=0.5, q_step=0.1, influence_measures_filename=None):
         self.q_step = q_step
@@ -33,6 +33,7 @@ class QuantRegressionResearch:
         self.model = sm.QuantReg.from_formula(self.formula(), data=df)
         self.results = self.model.fit(q=self.quantile, method='powell')
 
+        # self.influence = self.results.get_influence()
         self.residuals = self.results.resid
 
     def formula(self):
@@ -40,11 +41,11 @@ class QuantRegressionResearch:
         return f'{self.column} ~ {x_columns}'
 
     def info(self):
-        sep_str = '=============================================================================='
-        summary = self.results.summary(title=self.column)
-        law_str = mth.law_func(self.column, self.results)
-        het_str = mth.breuschpagan_test(self.residuals, self.model)  # тест на гетероскедастичность
-        summary.add_extra_txt([law_str, sep_str, het_str])
+        sep_str = '==============================================================='
+        summary = self.results.summary2(title=self.column, alpha=0.05, float_format='%.4f')
+        law_str = mth.law_func(self.results)  # формула
+        het_str = mth.breuschpagan_test(self.results)  # тест на гетероскедастичность
+        summary.add_text(sep_str + '\n' + law_str + '\n' + sep_str + '\n' + het_str)
         print(summary)
 
         print(sep_str)
@@ -64,8 +65,8 @@ class QuantRegressionResearch:
 
         # Other plots
         mth_plot.plot_residuals(self.results.predict(self.x), self.residuals)
-        mth_plot.qq_plot(self.residuals)
         mth_plot.params_quantiles_plot(x=self.x, y=self.y, q_step=self.q_step, params_names=self.results.params.index)
+        mth_plot.qq_plot(self.residuals)
 
     def stepwise_selection(self, criteria: str = 'AIC'):
         """
@@ -92,7 +93,7 @@ class QuantRegressionResearch:
 
             for index in range(len(remaining_features)):
                 features = remaining_features[:index] + remaining_features[(index + 1):]
-                model = sm.QuantReg(self.y, sm.add_constant(self.x[features])).fit(q=self.quantile)
+                model = sm.QuantReg(self.y, sm.add_constant(self.x[features])).fit(q=self.quantile, method='powell')
                 criterion = model.aic if criteria == 'AIC' else model.bic
 
                 if criterion < best_criterion:

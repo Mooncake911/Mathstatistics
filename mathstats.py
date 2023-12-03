@@ -1,17 +1,20 @@
+import os
 import pandas as pd
 import numpy as np
 
 import statsmodels.stats.api as sms
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
+current_file_path = os.path.abspath(__file__)
 
-def law_func(column, results):
+
+def law_func(results):
     """ Вывод закона (уравнения) регрессии. """
     params = results.params
-    params_names = results.params.index
-    output = f'Law:\n{column} = '
+    params_names = results.model.exog_names
+    output = f'Law:\n{results.model.endog_names} ~ '
     for i, c in enumerate(params_names):
-        output += f'({params[i]}) * {c}'
+        output += f'({params[i]:.4f}) * {c}'
         if i < len(params_names) - 1:
             output += ' + '
         if (i % 2 != 0) and (i != len(params_names) - 1):
@@ -19,35 +22,27 @@ def law_func(column, results):
     return output
 
 
-def breuschpagan_test(residuals, exogenous):
+def breuschpagan_test(results):
     """ Проводим тест Бройша-Пагана (Breusch-Pagan test) на гетероскедастичность. """
-    het_test = sms.het_breuschpagan(residuals, exogenous)
+    het_test = sms.het_breuschpagan(results.resid, results.model.exog)
     output = f'Breusch-Pagan test: \n' \
-             f'LM statistic: {het_test[0]}      LM-Test p-value: {het_test[1]:} \n' \
-             f'F-statistic: {het_test[2]}       F-Test p-value: {het_test[3]:}'
+             f'LM statistic: {het_test[0]:.3f} LM-Test p-value: {het_test[1]:.3f} \n' \
+             f'F-statistic: {het_test[2]:.3f} F-Test p-value: {het_test[3]:.3f}'
     return output
 
 
-def white_test(residuals, exogenous):
-    het_test = sms.het_white(residuals, exogenous)
+def white_test(results):
+    """ Проводим тест Уайта (White test) на гетероскедастичность. """
+    het_test = sms.het_white(results.resid_deviance, results.model.exog)
     output = f'White test: \n' \
-             f'LM statistic: {het_test[0]}      LM-Test p-value: {het_test[1]:} \n' \
-             f'F-statistic: {het_test[2]}       F-Test p-value: {het_test[3]:}'
+             f'LM statistic: {het_test[0]:.3f} LM-Test p-value: {het_test[1]:.3f} \n' \
+             f'F-statistic: {het_test[2]:.3f} F-Test p-value: {het_test[3]:.3f}'
     return output
-
-
-def vif_tol_test(df):
-    """ Проверяем модель на мультиколлинеарность данных. """
-    vif_tol_data = pd.DataFrame()
-    vif_tol_data["Variable"] = df.columns
-    vif_tol_data["VIF"] = [variance_inflation_factor(df.values, i) for i in range(df.shape[1])]
-    vif_tol_data["Tolerance"] = 1 / vif_tol_data["VIF"]
-    return vif_tol_data
 
 
 def wald_test(results, use_f=True):
     wald_data = []
-    params_names = list(results.params.index)
+    params_names = list(results.model.exog_names)
     len_pn = len(params_names)
 
     for p in range(len_pn + 1):
@@ -62,3 +57,14 @@ def wald_test(results, use_f=True):
 
     df = pd.DataFrame(wald_data, columns=params_names + ["F-statistic", "Prob (F-statistic)", "df_denom", "df_num"])
     return df
+
+
+def vif_tol_test(df):
+    """ Проверяем модель на мультиколлинеарность данных. """
+    if len(df.columns) < 2:
+        return f"{current_file_path}: UserWarning: (VIF/Tolerance) test only valid for n>=2 ... continuing anyway, n={len(df.columns)}"
+    vif_tol_data = pd.DataFrame()
+    vif_tol_data["Variable"] = df.columns
+    vif_tol_data["VIF"] = [variance_inflation_factor(df.values, i) for i in range(df.shape[1])]
+    vif_tol_data["Tolerance"] = 1 / vif_tol_data["VIF"]
+    return vif_tol_data

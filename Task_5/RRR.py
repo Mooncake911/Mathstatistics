@@ -17,6 +17,7 @@ sns.set()
 pd.options.display.expand_frame_repr = False
 
 
+# Гребневая регрессия
 class RidgeRegressionResearch:
     def __init__(self, df, column, alpha=1, influence_measures_filename=None):
         self.filename = influence_measures_filename
@@ -28,11 +29,9 @@ class RidgeRegressionResearch:
 
         self.alpha = alpha
         self.model = sm.OLS.from_formula(self.formula(), data=df)
-        self.results = self.model.fit_regularized(alpha=self.alpha, L1_wt=1e-6, refit=True)
-
-        self.influence = self.results.get_influence()
-        self.residuals = self.results.resid
-        self.exogenous = self.model.exog
+        self.results = self.model.fit_regularized(alpha=self.alpha, L1_wt=0, refit=True)
+        # self.influence = self.results.get_influence()
+        self.residuals = self.results.model.endog - self.results.predict(self.x)
 
     def formula(self):
         x_columns = "+".join(self.x.columns)
@@ -40,44 +39,33 @@ class RidgeRegressionResearch:
 
     def info(self):
         sep_str = '=============================================================================='
-        summary = self.results.summary(title=self.column)
-
-        coefficients = self.results.params
-        coefficients_names = ['Intercept'] + list(self.x.columns)
-        output_str = f'Law:\n{self.column} = '
-        for i, c in enumerate(coefficients_names):
-            output_str += f'({coefficients[i]}) * {c}'
-            if i < len(coefficients_names) - 1:
-                output_str += ' + '
-            if i % 2 != 0:
-                output_str += '\n'
-
-        law_str = output_str
-        het_str = mth.breuschpagan_test(self.residuals, self.exogenous)  # тест на гетероскедастичность
-        summary.add_extra_txt([law_str, sep_str, het_str])
-        print(summary)
+        # summary = self.results.summary()
+        # law_str = mth.law_func(self.results)    # формула
+        # het_str = mth.breuschpagan_test(self.results)   # тест на гетероскедастичность
+        # summary.add_extra_txt([law_str, sep_str, het_str])
+        # print(summary)
 
         print(sep_str)
         vif_tol_data = mth.vif_tol_test(self.x)  # тест на мультиколлинеарность
         display(vif_tol_data)
 
-        print(sep_str)
-        wald_data = mth.wald_test(self.results)  # анализ дисперсии модели
-        display(wald_data)
+        # print(sep_str)
+        # wald_data = mth.wald_test(self.results)  # анализ дисперсии модели
+        # display(wald_data)
 
         # print(sep_str)
         # anova_data = anova_lm(self.results)  # (не совсем) анализ дисперсии модели
         # display(anova_data)
 
-        print(sep_str)
-        influence_measures = self.influence.summary_frame()  # таблицы влиятельности для каждого наблюдения
-        if self.filename is not None:
-            influence_measures.to_csv(f'{self.filename}.csv', index=False)
-        display(influence_measures)
+        # print(sep_str)
+        # influence_measures = self.influence.summary_frame()  # таблицы влиятельности для каждого наблюдения
+        # if self.filename is not None:
+        #     influence_measures.to_csv(f'{self.filename}.csv', index=False)
+        # display(influence_measures)
 
-        print(sep_str)
-        outlier_test_results = self.results.outlier_test(method='bonferroni')  # тест на наличие выбросов.
-        display(outlier_test_results)
+        # print(sep_str)
+        # outlier_test_results = self.results.outlier_test(method='bonferroni')  # тест на наличие выбросов.
+        # display(outlier_test_results)
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
@@ -105,7 +93,8 @@ class RidgeRegressionResearch:
         remaining_features = list(self.x.columns)
 
         best_model = self.results
-        best_criterion = best_model.aic if criteria == 'AIC' else best_model.bic
+        best_criterion = 100
+        # best_criterion = best_model.aic if criteria == 'AIC' else best_model.bic
 
         k = True
         drop_index = None

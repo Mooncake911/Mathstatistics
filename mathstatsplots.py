@@ -144,7 +144,7 @@ def params_quantiles_plot(x, y, q_step, params_names):
     # Coefficients vs Quantiles plot
     quantiles = np.arange(q_step, 1, q_step)
 
-    fig, axs = plt.subplots(len(params_names), 1, figsize=(8, 20))
+    fig, axs = plt.subplots(len(params_names), 1, figsize=(12, 20))
     fig.suptitle('Coefficients vs Quantiles\n')
 
     params_groups = np.empty((len(quantiles), len(params_names)))
