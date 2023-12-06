@@ -14,6 +14,14 @@ from statsmodels.graphics.gofplots import ProbPlot
 
 def pair_scatter_plots(df, q=None, alpha=None):
     """ Попарные графики распределения зависимой переменной с зависимыми """
+
+    # TODO: Решить вопрос со степенью
+    def linear_reg_plot(x, y, **kwargs):
+        model = sm.OLS(y, sm.add_constant(x))
+        results = model.fit_regularized()
+        y_pred = results.predict(sm.add_constant(x))
+        plt.plot(x, y_pred, **kwargs)
+
     def ridge_reg_plot(x, y, **kwargs):
         model = sm.OLS(y, sm.add_constant(x))
         results = model.fit_regularized(alpha=alpha, L1_wt=0, refit=True)

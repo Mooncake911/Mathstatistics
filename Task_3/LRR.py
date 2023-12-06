@@ -4,10 +4,13 @@ import pandas as pd
 
 import statsmodels.api as sm
 # from statsmodels.stats.anova import anova_lm
+from sklearn.preprocessing import PolynomialFeatures
+from itertools import combinations_with_replacement
 
 from importlib import reload
 import mathstatsplots as mth_plot
 import mathstats as mth
+
 reload(mth_plot)
 reload(mth)
 
@@ -17,33 +20,35 @@ pd.options.display.expand_frame_repr = False
 
 # Линейная регрессия
 class LinearRegressionResearch:
-    def __init__(self, df, column):
-        self.df = df
-        self.column = column
-        self.x = df.drop(columns=column)
-        self.y = df[column]
+    def __init__(self, x, y, degree=1):
+        poly = PolynomialFeatures(degree=degree)
 
-        self.model = sm.OLS.from_formula(self.formula(), data=df)
+        self.y = y
+
+        self.column_names = ['const']
+        for d in range(1, degree + 1):
+            combinations = list(combinations_with_replacement(list(x.columns), d))
+            self.column_names += ['&'.join(comb) for comb in combinations]
+
+        self.x = pd.DataFrame(poly.fit_transform(x.values), columns=self.column_names)
+
+        self.model = sm.OLS(self.y, self.x)
         self.results = self.model.fit()
         self.y_pred = self.results.predict(self.x)
 
         self.influence = self.results.get_influence()
         self.residuals = self.results.resid
 
-    def formula(self):
-        x_columns = "+".join(self.x.columns)
-        return f'{self.column} ~ {x_columns}'
-
     def info(self):
         sep_str = '=============================================================================='
-        summary = self.results.summary(title=self.column)
+        summary = self.results.summary(title=self.y.name)
         law_str = mth.law_func(self.results)  # формула
         het_str = mth.breuschpagan_test(self.results)  # тест на гетероскедастичность
         summary.add_extra_txt([law_str, sep_str, het_str])
         print(summary)
 
         print(sep_str)
-        vif_tol_data = mth.vif_tol_test(self.x)  # тест на мультиколлинеарность
+        vif_tol_data = mth.vif_tol_test(self.results)  # тест на мультиколлинеарность
         display(vif_tol_data)
 
         print(sep_str)
@@ -64,7 +69,7 @@ class LinearRegressionResearch:
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
-        mth_plot.pair_scatter_plots(self.df)
+        mth_plot.pair_scatter_plots(df=pd.concat([self.y, self.x.drop(columns='const')], axis=1))
         mth_plot.residuals_plot(self.y_pred, self.residuals)
         mth_plot.influence_plot(self.influence)
         mth_plot.qq_plot(self.residuals)
@@ -89,12 +94,12 @@ class LinearRegressionResearch:
         drop_index = None
         while k:
             k = False
-            output += (f'Selected Features: {remaining_features} \n'
-                       f'{criteria}: {best_criterion} \n')
+            output += (f'Selected Features: {remaining_features[1:]}\n'
+                       f'{criteria}: {best_criterion}\n')
 
-            for index in range(len(remaining_features)):
+            for index in range(1, len(remaining_features)):  # идём с 1 чтобы не удалить константу
                 features = remaining_features[:index] + remaining_features[(index + 1):]
-                model = sm.OLS(self.y, sm.add_constant(self.x[features])).fit()
+                model = sm.OLS(self.y, self.x[features]).fit()
                 criterion = model.aic if criteria == 'AIC' else model.bic
 
                 if criterion < best_criterion:
@@ -107,4 +112,4 @@ class LinearRegressionResearch:
                 remaining_features.pop(drop_index)
 
         print(output)
-        return best_model, remaining_features
+        return pd.concat([self.y, self.x[remaining_features[1:]]], axis=1)

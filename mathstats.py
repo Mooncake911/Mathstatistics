@@ -8,17 +8,24 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 current_file_path = os.path.abspath(__file__)
 
 
-def law_func(results):
+def law_func(results, family='OLS'):
     """ Вывод закона (уравнения) регрессии. """
     params = results.params
     params_names = results.model.exog_names
-    output = f'Law:\n{results.model.endog_names} ~ '
+
+    put = ''
     for i, c in enumerate(params_names):
-        output += f'({params[i]:.4f}) * {c}'
+        put += f'({params[i]:.4f}) * {c}'
         if i < len(params_names) - 1:
-            output += ' + '
+            put += ' + '
         if (i % 2 != 0) and (i != len(params_names) - 1):
-            output += '\n'
+            put += '\n'
+
+    if family == 'OLS':
+        output = f'Law:\n{results.model.endog_names} ~ {put}'
+    else:
+        output = f'Law:\nP({results.model.endog_names}) ~ G({put})'
+
     return output
 
 
@@ -40,7 +47,7 @@ def white_test(results):
     return output
 
 
-def wald_test(results, use_f=True):
+def wald_test(results, use_f: bool = True):
     """ Анализ дисперсии модели. """
     wald_data = []
     params_names = list(results.model.exog_names)
@@ -60,12 +67,13 @@ def wald_test(results, use_f=True):
     return df
 
 
-def vif_tol_test(df):
+def vif_tol_test(results, exclude_const: bool = False):
     """ Проверяем модель на мультиколлинеарность данных. """
-    if len(df.columns) < 2:
-        return f"{current_file_path}: UserWarning: (VIF/Tolerance) test only valid for n>=2 ... continuing anyway, n={len(df.columns)}"
+    results = pd.DataFrame(results.model.exog[:, exclude_const:], columns=results.model.exog_names[exclude_const:])
+    if len(results.columns) < 2:
+        return f"{current_file_path}: UserWarning: (VIF/Tolerance) test only valid for n>=2 ... continuing anyway, n={len(results.columns)}"
     vif_tol_data = pd.DataFrame()
-    vif_tol_data["Variable"] = df.columns
-    vif_tol_data["VIF"] = [variance_inflation_factor(df.values, i) for i in range(df.shape[1])]
+    vif_tol_data["Variable"] = results.columns
+    vif_tol_data["VIF"] = [variance_inflation_factor(results.values, i) for i in range(results.shape[1])]
     vif_tol_data["Tolerance"] = 1 / vif_tol_data["VIF"]
     return vif_tol_data

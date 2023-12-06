@@ -4,6 +4,8 @@ import pandas as pd
 
 import statsmodels.api as sm
 # from statsmodels.stats.anova import anova_lm
+from sklearn.preprocessing import PolynomialFeatures
+from itertools import combinations_with_replacement
 
 from importlib import reload
 import mathstatsplots as mth_plot
@@ -17,35 +19,37 @@ pd.options.display.expand_frame_repr = False
 
 # Квантильная регрессия
 class QuantRegressionResearch:
-    def __init__(self, df, column, q=0.5, q_step=0.1):
-        self.df = df
-        self.column = column
-        self.x = df.drop(columns=column)
-        self.y = df[column]
+    def __init__(self, x, y, degree=1, q=0.5, q_step=0.1):
+        poly = PolynomialFeatures(degree=degree)
+
+        self.y = y
+
+        self.column_names = ['const']
+        for d in range(1, degree + 1):
+            combinations = list(combinations_with_replacement(list(x.columns), d))
+            self.column_names += ['&'.join(comb) for comb in combinations]
+
+        self.x = pd.DataFrame(poly.fit_transform(x.values), columns=self.column_names)
 
         self.q_step = q_step
         self.quantile = q
-        self.model = sm.QuantReg.from_formula(self.formula(), data=df)
+        self.model = sm.QuantReg(self.y, self.x)
         self.results = self.model.fit(q=self.quantile, method='powell')
         self.y_pred = self.results.predict(self.x)
 
         # self.influence = self.results.get_influence()
         self.residuals = self.results.resid
 
-    def formula(self):
-        x_columns = "+".join(self.x.columns)
-        return f'{self.column} ~ {x_columns}'
-
     def info(self):
         sep_str = '==============================================================='
-        summary = self.results.summary2(title=self.column, alpha=0.05, float_format='%.4f')
+        summary = self.results.summary2(title=self.y.name, alpha=0.05, float_format='%.4f')
         law_str = mth.law_func(self.results)  # формула
         het_str = mth.breuschpagan_test(self.results)  # тест на гетероскедастичность
         summary.add_text(sep_str + '\n' + law_str + '\n' + sep_str + '\n' + het_str)
         print(summary)
 
         print(sep_str)
-        vif_tol_data = mth.vif_tol_test(self.x)  # тест на мультиколлинеарность
+        vif_tol_data = mth.vif_tol_test(self.results)  # тест на мультиколлинеарность
         display(vif_tol_data)
 
         print(sep_str)
@@ -58,7 +62,7 @@ class QuantRegressionResearch:
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
-        mth_plot.pair_scatter_plots(self.df, q=self.quantile)
+        mth_plot.pair_scatter_plots(df=pd.concat([self.y, self.x.drop(columns='const')], axis=1), q=self.quantile)
         mth_plot.residuals_plot(self.y_pred, self.residuals)
         mth_plot.params_quantiles_plot(x=self.x, y=self.y, q_step=self.q_step, params_names=self.results.params.index)
         mth_plot.qq_plot(self.residuals)
@@ -83,12 +87,12 @@ class QuantRegressionResearch:
         drop_index = None
         while k:
             k = False
-            output += (f'Selected Features: {remaining_features} \n'
-                       f'{criteria}: {best_criterion} \n')
+            output += (f'Selected Features: {remaining_features[1:]}\n'
+                       f'{criteria}: {best_criterion}\n')
 
-            for index in range(len(remaining_features)):
+            for index in range(1, len(remaining_features)):  # идём с 1 чтобы не удалить константу
                 features = remaining_features[:index] + remaining_features[(index + 1):]
-                model = sm.QuantReg(self.y, sm.add_constant(self.x[features])).fit(q=self.quantile, method='powell')
+                model = sm.QuantReg(self.y, self.x[features]).fit(q=self.quantile, method='powell')
                 criterion = model.aic if criteria == 'AIC' else model.bic
 
                 if criterion < best_criterion:
@@ -101,4 +105,4 @@ class QuantRegressionResearch:
                 remaining_features.pop(drop_index)
 
         print(output)
-        return best_model, remaining_features
+        return pd.concat([self.y, self.x[remaining_features[1:]]], axis=1)

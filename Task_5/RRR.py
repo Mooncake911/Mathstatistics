@@ -4,6 +4,8 @@ import pandas as pd
 
 import statsmodels.api as sm
 # from statsmodels.stats.anova import anova_lm
+from sklearn.preprocessing import PolynomialFeatures
+from itertools import combinations_with_replacement
 
 from importlib import reload
 import mathstatsplots as mth_plot
@@ -17,23 +19,25 @@ pd.options.display.expand_frame_repr = False
 
 # Гребневая регрессия
 class RidgeRegressionResearch:
-    def __init__(self, df, column, alpha=1):
-        self.df = df
-        self.column = column
-        self.x = df.drop(columns=column)
-        self.y = df[column]
+    def __init__(self, x, y, degree=1, alpha=1):
+        poly = PolynomialFeatures(degree=degree)
+
+        self.y = y
+
+        self.column_names = ['const']
+        for d in range(1, degree + 1):
+            combinations = list(combinations_with_replacement(list(x.columns), d))
+            self.column_names += ['&'.join(comb) for comb in combinations]
+
+        self.x = pd.DataFrame(poly.fit_transform(x.values), columns=self.column_names)
 
         self.alpha = alpha
-        self.model = sm.OLS.from_formula(self.formula(), data=df)
+        self.model = sm.OLS(self.y, self.x)
         self.results = self.model.fit_regularized(alpha=self.alpha, L1_wt=0, refit=True)
         self.y_pred = self.results.predict(self.x)
 
         # self.influence = self.results.get_influence()
         self.residuals = self.results.model.endog - self.y_pred
-
-    def formula(self):
-        x_columns = "+".join(self.x.columns)
-        return f'{self.column} ~ {x_columns}'
 
     def info(self):
         sep_str = '=============================================================================='
@@ -44,7 +48,7 @@ class RidgeRegressionResearch:
         # print(summary)
 
         print(sep_str)
-        vif_tol_data = mth.vif_tol_test(self.x)  # тест на мультиколлинеарность
+        vif_tol_data = mth.vif_tol_test(self.results)  # тест на мультиколлинеарность
         display(vif_tol_data)
 
         # print(sep_str)
@@ -67,7 +71,7 @@ class RidgeRegressionResearch:
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
-        mth_plot.pair_scatter_plots(self.df, alpha=self.alpha)
+        mth_plot.pair_scatter_plots(df=pd.concat([self.y, self.x.drop(columns='const')], axis=1), alpha=self.alpha)
         mth_plot.residuals_plot(self.y_pred, self.residuals)
         mth_plot.cross_validation_plot(self.x, self.y)
         mth_plot.qq_plot(self.residuals)
@@ -87,19 +91,17 @@ class RidgeRegressionResearch:
 
         best_model = self.results
         best_criterion = 100
-        # best_criterion = best_model.aic if criteria == 'AIC' else best_model.bic
 
         k = True
         drop_index = None
         while k:
             k = False
-            output += (f'Selected Features: {remaining_features} \n'
-                       f'{criteria}: {best_criterion} \n')
+            output += (f'Selected Features: {remaining_features[1:]}\n'
+                       f'{criteria}: {best_criterion}\n')
 
-            for index in range(len(remaining_features)):
+            for index in range(1, len(remaining_features)):  # идём с 1 чтобы не удалить константу
                 features = remaining_features[:index] + remaining_features[(index + 1):]
-                model = sm.OLS(self.y, sm.add_constant(self.x[features])).fit_regularized(alpha=self.alpha, L1_wt=1e-6,
-                                                                                          refit=True)
+                model = sm.OLS(self.y, self.x[features]).fit_regularized(alpha=self.alpha, L1_wt=1e-6, refit=True)
                 criterion = model.aic if criteria == 'AIC' else model.bic
 
                 if criterion < best_criterion:
@@ -112,4 +114,4 @@ class RidgeRegressionResearch:
                 remaining_features.pop(drop_index)
 
         print(output)
-        return best_model, remaining_features
+        return pd.concat([self.y, self.x[remaining_features[1:]]], axis=1)
