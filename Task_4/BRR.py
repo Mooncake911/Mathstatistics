@@ -56,7 +56,7 @@ class BinomialRegressionResearch:
         summary = self.results.summary(title=self.y.name)
         law_str = mth.law_func(self.results, family='GLM')  # формула
         het_str = mth.white_test(self.results)  # тест на гетероскедастичность
-        summary.add_extra_txt([law_str, sep_str, het_str])
+        summary.add_extra_txt([het_str, sep_str, law_str])
         print(summary)
 
         print(sep_str)

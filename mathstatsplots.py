@@ -7,44 +7,45 @@ import numpy as np
 from scipy.stats import zscore
 from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve, average_precision_score
+from sklearn.preprocessing import PolynomialFeatures
 
 import statsmodels.api as sm
 from statsmodels.graphics.gofplots import ProbPlot
 
 
-def pair_scatter_plots(df, q=None, alpha=None):
+def pair_scatter_plots(df, degree=1, q=None, alpha=None, base_reg: bool = True):
     """ Попарные графики распределения зависимой переменной с зависимыми """
+    poly = PolynomialFeatures(degree=degree)
 
-    # TODO: Решить вопрос со степенью
-    def linear_reg_plot(x, y, **kwargs):
-        model = sm.OLS(y, sm.add_constant(x))
-        results = model.fit_regularized()
-        y_pred = results.predict(sm.add_constant(x))
+    def reg_plot(x, y, **kwargs):
+        idx = x.ravel().argsort()  # сортируем x и возвращаем индексы
+        x = x.ravel()[idx].reshape(-1, 1)
+        y = y[idx]  # сортируем y в соответствии с индексами x
+        xp = poly.fit_transform(x)
+
+        if q is not None:
+            model = sm.QuantReg(y, xp).fit(q=q, method='powell')
+        elif alpha is not None:
+            model = sm.OLS(y, xp).fit_regularized(alpha=alpha, L1_wt=0, refit=True, profile_scale=False)
+        else:
+            model = sm.OLS(y, xp).fit()
+
+        y_pred = model.predict(xp)
+        plt.scatter(x, y)
         plt.plot(x, y_pred, **kwargs)
 
-    def ridge_reg_plot(x, y, **kwargs):
-        model = sm.OLS(y, sm.add_constant(x))
-        results = model.fit_regularized(alpha=alpha, L1_wt=0, refit=True)
-        y_pred = results.predict(sm.add_constant(x))
-        plt.plot(x, y_pred, **kwargs)
-
-    def quant_reg_plot(x, y, **kwargs):
-        model = sm.QuantReg(y, sm.add_constant(x))
-        results = model.fit(q=q, method='powell')
-        y_pred = results.predict(sm.add_constant(x))
-        plt.plot(x, y_pred, **kwargs)
+        if alpha is None:
+            sfm = model.get_prediction().summary_frame()
+            plt.fill_between(x=x.flatten(), y1=sfm['mean_ci_lower'], y2=sfm['mean_ci_upper'], alpha=0.1, linestyle=':',
+                             **kwargs)
 
     grid = sns.PairGrid(df)
-    grid.map_lower(sns.regplot)
-    grid.map_upper(sns.regplot)
     grid.map_diag(sns.histplot)
-
-    if q is not None:
-        grid.map_lower(quant_reg_plot, color='darkorange')
-        grid.map_upper(quant_reg_plot, color='darkorange')
-    if alpha is not None:
-        grid.map_lower(ridge_reg_plot, color='darkorange')
-        grid.map_upper(ridge_reg_plot, color='darkorange')
+    grid.map_lower(reg_plot, color='darkorange')
+    grid.map_upper(reg_plot, color='darkorange')
+    if (alpha is not None) or (q is not None) or degree > 1:
+        grid.map_lower(sns.regplot)
+        grid.map_upper(sns.regplot)
 
     plt.suptitle("Pair-plot with Regression Lines", y=1.02, fontsize=20)
     plt.show()

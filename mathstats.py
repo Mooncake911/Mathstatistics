@@ -29,21 +29,35 @@ def law_func(results, family='OLS'):
     return output
 
 
+def criteria_test(results):
+    # Вдруг понадобится - (AIC и BIC есть в summary)
+    # output = (f'Criteria of informativeness:\n'
+    #           f'AIC (Akaikes Information Criterion): {results.info_criteria("AIC")}\n'
+    #           f'BIC (Bayesian Information Criterion): {results.info_criteria("BIC")}\n'
+    #           f'HQIC (Hannan-Quinn Information Criterion): {results.info_criteria("HQIC")}\n')
+
+    output = (f'Mean squared error the model:           {results.mse_model}\n'
+              f'Mean squared error of the residuals:    {results.mse_resid}\n'
+              f'Total mean squared error:               {results.mse_total}\n'
+              f'Mean absolute error:                    {np.mean(np.abs(results.resid))}')
+    return output
+
+
 def breuschpagan_test(results):
     """ Проводим тест Бройша-Пагана (Breusch-Pagan test) на гетероскедастичность. """
     het_test = sms.het_breuschpagan(results.resid, results.model.exog)
-    output = f'Breusch-Pagan test: \n' \
-             f'LM statistic: {het_test[0]:.3f} LM-Test p-value: {het_test[1]:.3f} \n' \
-             f'F-statistic: {het_test[2]:.3f} F-Test p-value: {het_test[3]:.3f}'
+    output = (f'Breusch-Pagan test:\n'
+              f'LM statistic:                   {het_test[0]:.3f}   LM-Test p-value:                 {het_test[1]:.3f}\n'
+              f'F-statistic:                    {het_test[2]:.3f}   F-Test p-value:                  {het_test[3]:.3f}')
     return output
 
 
 def white_test(results):
     """ Проводим тест Уайта (White test) на гетероскедастичность. """
     het_test = sms.het_white(results.resid_deviance, results.model.exog)
-    output = f'White test: \n' \
-             f'LM statistic: {het_test[0]:.3f} LM-Test p-value: {het_test[1]:.3f} \n' \
-             f'F-statistic: {het_test[2]:.3f} F-Test p-value: {het_test[3]:.3f}'
+    output = (f'White test:\n'
+              f'LM statistic:                   {het_test[0]:.3f}   F-statistic:                    {het_test[2]:.3f}\n'
+              f'LM-Test p-value:                {het_test[1]:.3f}   F-Test p-value:                 {het_test[3]:.3f}')
     return output
 
 

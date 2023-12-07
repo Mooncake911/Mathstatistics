@@ -20,12 +20,13 @@ pd.options.display.expand_frame_repr = False
 # Гребневая регрессия
 class RidgeRegressionResearch:
     def __init__(self, x, y, degree=1, alpha=1):
-        poly = PolynomialFeatures(degree=degree)
+        self.degree = degree
+        poly = PolynomialFeatures(degree=self.degree)
 
         self.y = y
 
         self.column_names = ['const']
-        for d in range(1, degree + 1):
+        for d in range(1, self.degree + 1):
             combinations = list(combinations_with_replacement(list(x.columns), d))
             self.column_names += ['&'.join(comb) for comb in combinations]
 
@@ -71,7 +72,8 @@ class RidgeRegressionResearch:
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
-        mth_plot.pair_scatter_plots(df=pd.concat([self.y, self.x.drop(columns='const')], axis=1), alpha=self.alpha)
+        df = pd.concat([self.y, self.x.drop(columns='const')], axis=1)
+        mth_plot.pair_scatter_plots(df=df, degree=self.degree, alpha=self.alpha)
         mth_plot.residuals_plot(self.y_pred, self.residuals)
         mth_plot.cross_validation_plot(self.x, self.y)
         mth_plot.qq_plot(self.residuals)

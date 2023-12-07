@@ -21,12 +21,13 @@ pd.options.display.expand_frame_repr = False
 # Линейная регрессия
 class LinearRegressionResearch:
     def __init__(self, x, y, degree=1):
-        poly = PolynomialFeatures(degree=degree)
+        self.degree = degree
+        poly = PolynomialFeatures(degree=self.degree)
 
         self.y = y
 
         self.column_names = ['const']
-        for d in range(1, degree + 1):
+        for d in range(1, self.degree + 1):
             combinations = list(combinations_with_replacement(list(x.columns), d))
             self.column_names += ['&'.join(comb) for comb in combinations]
 
@@ -44,7 +45,8 @@ class LinearRegressionResearch:
         summary = self.results.summary(title=self.y.name)
         law_str = mth.law_func(self.results)  # формула
         het_str = mth.breuschpagan_test(self.results)  # тест на гетероскедастичность
-        summary.add_extra_txt([law_str, sep_str, het_str])
+        crt_str = mth.criteria_test(self.results)
+        summary.add_extra_txt([het_str, sep_str, law_str, sep_str, crt_str])
         print(summary)
 
         print(sep_str)
@@ -69,7 +71,8 @@ class LinearRegressionResearch:
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
-        mth_plot.pair_scatter_plots(df=pd.concat([self.y, self.x.drop(columns='const')], axis=1))
+        df = pd.concat([self.y, self.x.drop(columns='const')], axis=1)
+        mth_plot.pair_scatter_plots(df=df, degree=self.degree)
         mth_plot.residuals_plot(self.y_pred, self.residuals)
         mth_plot.influence_plot(self.influence)
         mth_plot.qq_plot(self.residuals)
