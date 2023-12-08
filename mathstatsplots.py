@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 
 from scipy.stats import zscore
-from sklearn.linear_model import Ridge, RidgeCV
+from sklearn.linear_model import RidgeCV
 from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve, average_precision_score
 from sklearn.preprocessing import PolynomialFeatures
 
@@ -13,8 +13,8 @@ import statsmodels.api as sm
 from statsmodels.graphics.gofplots import ProbPlot
 
 
-def pair_scatter_plots(df, degree=1, q=None, alpha=None, base_reg: bool = True):
-    """ Попарные графики распределения зависимой переменной с зависимыми """
+def pair_scatter_plots(df, degree=1, q=None, alpha=None, line_reg: bool = True):
+    """ Попарные графики распределения """
     poly = PolynomialFeatures(degree=degree)
 
     def reg_plot(x, y, **kwargs):
@@ -43,7 +43,7 @@ def pair_scatter_plots(df, degree=1, q=None, alpha=None, base_reg: bool = True):
     grid.map_diag(sns.histplot)
     grid.map_lower(reg_plot, color='darkorange')
     grid.map_upper(reg_plot, color='darkorange')
-    if (alpha is not None) or (q is not None) or degree > 1:
+    if line_reg:
         grid.map_lower(sns.regplot)
         grid.map_upper(sns.regplot)
 
