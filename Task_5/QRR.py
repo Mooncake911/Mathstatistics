@@ -1,5 +1,3 @@
-from IPython.display import display
-
 import statsmodels.api as sm
 
 from importlib import reload
@@ -19,7 +17,7 @@ class QuantRegressionResearch(reg.Model):
         self.q_step = q_step
         self.quantile = q
         self.y_pred = self.results.predict(self.x)
-        # self.influence = self.results.get_influence()
+
         self.residuals = self.results.resid
 
     def info(self):
@@ -31,13 +29,8 @@ class QuantRegressionResearch(reg.Model):
         summary.add_text(sep_str + '\n' + het_str + '\n' + sep_str + '\n' + law_str)
         print(summary)
 
-        print(sep_str)
-        vif_tol_data = mth.vif_tol_test(self.results)  # тест на мультиколлинеарность
-        display(vif_tol_data)
-
-        print(sep_str)
-        wald_data = mth.wald_test(self.results)  # анализ дисперсии модели
-        display(wald_data)
+        mth.vif_tol_test(self.results)
+        mth.wald_test(self.results)
 
         # print(sep_str)
         # anova_data = anova_lm(self.results)  # анализ дисперсии модели

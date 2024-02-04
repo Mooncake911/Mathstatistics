@@ -1,11 +1,10 @@
-from IPython.display import display
-
 import statsmodels.api as sm
 
 from importlib import reload
 import regression as reg
 import mathstatsplots as mth_plot
 import mathstats as mth
+
 reload(reg)
 reload(mth_plot)
 reload(mth)
@@ -22,35 +21,25 @@ class BinomialRegressionResearch(reg.Model):
         self.y_prob = self.results.predict(self.x)
         self.y_pred = (self.y_prob > threshold).astype(int)
 
-        self.influence = self.results.get_influence()
         self.residuals = self.results.resid_deviance
 
     def info(self):
         """ Выводим необходимые тесты и статистику """
         sep_str = '=============================================================================='
         summary = self.results.summary(title=self.y.name)
-        law_str = mth.law_func(self.results, family='GLM')  # формула
-        het_str = mth.white_test(self.results)  # тест на гетероскедастичность
+        law_str = mth.law_func(self.results, family='GLM')
+        het_str = mth.white_test(self.results)
         summary.add_extra_txt([het_str, sep_str, law_str])
         print(summary)
 
-        print(sep_str)
-        vif_tol_data = mth.vif_tol_test(self.results)  # тест на мультиколлинеарность
-        display(vif_tol_data)
-
-        print(sep_str)
-        wald_data = mth.wald_test(self.results)  # анализ дисперсии модели
-        display(wald_data)
-
-        print(sep_str)
-        influence_measures = self.influence.summary_frame()  # таблица влиятельности для каждого наблюдения
-        # influence_measures = influence_measures.sort_values("cooks_d", ascending=False)
-        display(influence_measures)
+        mth.vif_tol_test(self.results)
+        mth.wald_test(self.results)
+        mth.summary_frame(self.results)
 
     def draw_plots(self):
         """ Рисуем графики необходимые для анализа """
         mth_plot.confusion_matrix_plot(self.y, self.y_pred)
         mth_plot.residuals_plot(self.y_prob, self.residuals)
-        mth_plot.influence_plot(self.influence)
+        mth_plot.influence_plot(self.results)
         mth_plot.qq_plot(self.residuals)
         mth_plot.roc_plot(self.y, self.y_prob)

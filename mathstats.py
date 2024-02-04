@@ -1,3 +1,6 @@
+from IPython.display import display
+from functools import wraps
+
 import os
 import pandas as pd
 import numpy as np
@@ -5,10 +8,25 @@ import numpy as np
 import statsmodels.stats.api as sms
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
+from typing import Union
+from statsmodels.regression.linear_model import RegressionResultsWrapper
+from statsmodels.genmod.generalized_linear_model import GLMResultsWrapper
+Results = Union[RegressionResultsWrapper, GLMResultsWrapper]
+
 current_file_path = os.path.abspath(__file__)
 
 
-def law_func(results, family='OLS'):
+def display_decorator(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        print('\n=== %s ===' % func.__name__)
+        data = func(*args, **kwargs)
+        display(data)
+        return data
+    return wrapper
+
+
+def law_func(results: Results, family='OLS') -> str:
     """ Вывод закона (уравнения) регрессии. """
     params = results.params
     params_names = results.model.exog_names
@@ -29,7 +47,7 @@ def law_func(results, family='OLS'):
     return output
 
 
-def criteria_test(results):
+def criteria_test(results: Results) -> str:
     # Вдруг понадобится - (AIC и BIC есть в summary)
     # output = (f'Criteria of informativeness:\n'
     #           f'AIC (Akaikes Information Criterion): {results.info_criteria("AIC")}\n'
@@ -43,7 +61,7 @@ def criteria_test(results):
     return output
 
 
-def breuschpagan_test(results):
+def breuschpagan_test(results: Results) -> str:
     """ Проводим тест Бройша-Пагана (Breusch-Pagan test) на гетероскедастичность. """
     het_test = sms.het_breuschpagan(results.resid, results.model.exog)
     output = (f'Breusch-Pagan test:\n'
@@ -52,7 +70,7 @@ def breuschpagan_test(results):
     return output
 
 
-def white_test(results):
+def white_test(results: Results) -> str:
     """ Проводим тест Уайта (White test) на гетероскедастичность. """
     het_test = sms.het_white(results.resid_deviance, results.model.exog)
     output = (f'White test:\n'
@@ -61,7 +79,8 @@ def white_test(results):
     return output
 
 
-def wald_test(results, use_f: bool = True):
+@display_decorator
+def wald_test(results: Results, use_f: bool = True) -> pd.DataFrame:
     """ Анализ дисперсии модели. """
     wald_data = []
     params_names = list(results.model.exog_names)
@@ -81,13 +100,30 @@ def wald_test(results, use_f: bool = True):
     return df
 
 
-def vif_tol_test(results, exclude_const: bool = False):
+@display_decorator
+def vif_tol_test(results: Results, exclude_const: bool = False) -> pd.DataFrame:
     """ Проверяем модель на мультиколлинеарность данных. """
     results = pd.DataFrame(results.model.exog[:, exclude_const:], columns=results.model.exog_names[exclude_const:])
     if len(results.columns) < 2:
-        return f"{current_file_path}: UserWarning: (VIF/Tolerance) test only valid for n>=2 ... continuing anyway, n={len(results.columns)}"
-    vif_tol_data = pd.DataFrame()
-    vif_tol_data["Variable"] = results.columns
-    vif_tol_data["VIF"] = [variance_inflation_factor(results.values, i) for i in range(results.shape[1])]
-    vif_tol_data["Tolerance"] = 1 / vif_tol_data["VIF"]
-    return vif_tol_data
+        raise f"{current_file_path}: UserWarning: (VIF/Tolerance) test only valid for n>=2 ... continuing anyway, n={len(results.columns)}"
+    df = pd.DataFrame()
+    df["Variable"] = results.columns
+    df["VIF"] = [variance_inflation_factor(results.values, i) for i in range(results.shape[1])]
+    df["Tolerance"] = 1 / df["VIF"]
+    return df
+
+
+@display_decorator
+def summary_frame(results: Results) -> pd.DataFrame:
+    """ Таблица влиятельности для каждого наблюдения. """
+    influence = results.get_influence()
+    df = influence.summary_frame()
+    # influence_measures = df.sort_values("cooks_d", ascending=False)
+    return df
+
+
+@display_decorator
+def outlier_test(results: Results, method: str = 'bonferroni') -> pd.DataFrame:
+    """ Тест на наличие выбросов. """
+    df = results.outlier_test(method=method)
+    return df

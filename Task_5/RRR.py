@@ -1,5 +1,3 @@
-from IPython.display import display
-
 import statsmodels.api as sm
 
 from importlib import reload
@@ -18,7 +16,6 @@ class RidgeRegressionResearch(reg.Model):
         self.alpha = alpha
         self.results = sm.OLS(self.y, self.x).fit_regularized(alpha=self.alpha, L1_wt=0, refit=True)
         self.y_pred = self.results.predict(self.x)
-        # self.influence = self.results.get_influence()
         self.residuals = self.results.model.endog - self.y_pred
 
     def info(self):
@@ -30,9 +27,7 @@ class RidgeRegressionResearch(reg.Model):
         # summary.add_extra_txt([law_str, sep_str, het_str])
         # print(summary)
 
-        print(sep_str)
-        vif_tol_data = mth.vif_tol_test(self.results)  # тест на мультиколлинеарность
-        display(vif_tol_data)
+        mth.vif_tol_test(self.results)
 
         # print(sep_str)
         # wald_data = mth.wald_test(self.results)  # анализ дисперсии модели

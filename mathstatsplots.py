@@ -1,3 +1,4 @@
+from typing import Any
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -13,7 +14,7 @@ import statsmodels.api as sm
 from statsmodels.graphics.gofplots import ProbPlot
 
 
-def pair_scatter_plots(df, degree=1, q=None, alpha=None, line_reg: bool = True):
+def pair_scatter_plots(df, degree=1, q=None, alpha=None, line_reg: bool = True) -> Any:
     """ Попарные графики распределения """
     poly = PolynomialFeatures(degree=degree)
 
@@ -51,7 +52,7 @@ def pair_scatter_plots(df, degree=1, q=None, alpha=None, line_reg: bool = True):
     plt.show()
 
 
-def residuals_plot(y_pred, residuals):
+def residuals_plot(y_pred, residuals) -> Any:
     """ Просто график распределения остатков """
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
@@ -72,15 +73,16 @@ def residuals_plot(y_pred, residuals):
     plt.show()
 
 
-def influence_plot(influence):
+def influence_plot(results) -> Any:
     """ График влияния в регрессии """
+    influence = results.get_influence()
     fig, ax = plt.subplots(figsize=(12, 8))
     influence.plot_influence(criterion="cooks", size=25, plot_alpha=0.5, ax=ax)
     plt.title('Residuals vs Leverage', fontsize=20)
     plt.show()
 
 
-def qq_plot(residuals):
+def qq_plot(residuals) -> Any:
     """ Normal Q-Q plot """
     QQ = ProbPlot(zscore(residuals))
     QQ.qqplot(line='45', alpha=0.5, lw=1)
@@ -90,7 +92,7 @@ def qq_plot(residuals):
     plt.show()
 
 
-def roc_plot(y, y_prob):
+def roc_plot(y, y_prob) -> Any:
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     """ ROC-кривая """
     fpr, tpr, thresholds = roc_curve(y, y_prob)
@@ -129,7 +131,7 @@ def roc_plot(y, y_prob):
     plt.show()
 
 
-def confusion_matrix_plot(y, y_pred):
+def confusion_matrix_plot(y, y_pred) -> Any:
     """ Матрица Несоответствий """
     conf_matrix = confusion_matrix(y, y_pred)
     cnf_matrix_percent = conf_matrix.astype('float') / conf_matrix.sum(axis=1)[:, np.newaxis]
@@ -147,7 +149,7 @@ def confusion_matrix_plot(y, y_pred):
     axes[1].title.set_text('Perceptron: %')
 
 
-def cross_validation_plot(x, y):
+def cross_validation_plot(x, y) -> Any:
     """ График кросс-валидации для alpha """
     alphas = np.logspace(-6, 6, 13)
     ridge_model = RidgeCV(alphas=alphas, store_cv_values=True)
@@ -179,7 +181,7 @@ def cross_validation_plot(x, y):
     plt.show()
 
 
-def params_quantiles_plot(x, y, q_step, params_names):
+def params_quantiles_plot(x, y, q_step, params_names) -> Any:
     """ График показывающий зависимость между коэффициентами и квантилями """
     quantiles = np.arange(q_step, 1, q_step)
 
